@@ -38,6 +38,8 @@ const (
 	Gauge DataType = iota
 	// Count is the Datadog Count metric type.
 	Count
+	// Rate is the Datadog Rate metric type.
+	Rate
 )
 
 // UnmarshalText implements encoding.TextUnmarshaler.
@@ -47,6 +49,8 @@ func (t *DataType) UnmarshalText(text []byte) error {
 		*t = Gauge
 	case "count":
 		*t = Count
+	case "rate":
+		*t = Rate
 	default:
 		return fmt.Errorf("invalid metric data type %q", text)
 	}
@@ -60,6 +64,8 @@ func (t DataType) MarshalText() ([]byte, error) {
 		return []byte("gauge"), nil
 	case Count:
 		return []byte("count"), nil
+	case Rate:
+		return []byte("rate"), nil
 	}
 
 	return nil, fmt.Errorf("invalid metric data type %d", t)

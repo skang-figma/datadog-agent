@@ -35,7 +35,7 @@ func newLossLessMapper(cfg translatorConfig, logger *zap.Logger) mapper {
 
 // MapNumberMetrics maps number datapoints to Datadog metrics.
 func (m *lossLessMapper) MapNumberMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, dt DataType, slice pmetric.NumberDataPointSlice) {
-	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval)
+	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval, m.cfg.SendCountersAsRate)
 }
 
 // mapNumberMetrics maps number datapoints into Datadog metrics.
@@ -48,6 +48,7 @@ func mapNumberMetrics(
 	slice pmetric.NumberDataPointSlice,
 	logger *zap.Logger,
 	inferInterval bool,
+	sendCountersAsRate bool,
 ) {
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
@@ -69,13 +70,19 @@ func mapNumberMetrics(
 			continue
 		}
 
+		outType := dt
 		// Calculate interval for Count type metrics (from OTLP delta sums)
 		var interval int64
 		if inferInterval && dt == Count {
 			interval = inferDeltaInterval(uint64(p.StartTimestamp()), uint64(p.Timestamp()))
+			// Convert Count to Rate if configured 
+			if sendCountersAsRate && interval > 0 {
+				outType = Rate
+				val /= float64(interval)
+			}
 		}
 
-		consumer.ConsumeTimeSeries(ctx, pointDims, dt, uint64(p.Timestamp()), interval, val)
+		consumer.ConsumeTimeSeries(ctx, pointDims, outType, uint64(p.Timestamp()), interval, val)
 	}
 }
 

@@ -30,6 +30,7 @@ type translatorConfig struct {
 	InstrumentationLibraryMetadataAsTags bool
 	InstrumentationScopeMetadataAsTags   bool
 	InferDeltaInterval                   bool
+	SendCountersAsRate                   bool
 
 	originProduct OriginProduct
 
@@ -245,6 +246,17 @@ func WithInitialCumulMonoValueMode(mode InitialCumulMonoValueMode) TranslatorOpt
 // By default the interval is set to 0.
 func WithInferDeltaInterval() TranslatorOption {
 	return func(t *translatorConfig) error {
+		t.InferDeltaInterval = true
+		return nil
+	}
+}
+
+// WithCountersAsRate configures the translator to emit counter metrics as Datadog rates
+// instead of counts when an interval can be inferred. The rate value is computed as
+// count / interval. This option implies WithInferDeltaInterval.
+func WithCountersAsRate() TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.SendCountersAsRate = true
 		t.InferDeltaInterval = true
 		return nil
 	}

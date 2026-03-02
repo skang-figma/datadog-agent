@@ -21,6 +21,7 @@ func TestLossLessMapperMapNumberMetrics(t *testing.T) {
 		name               string
 		dataType           DataType
 		inferDeltaInterval bool
+		sendCountersAsRate bool
 		setupSlice         func(slice pmetric.NumberDataPointSlice)
 		expectedTimeSeries []TestTimeSeries
 	}{
@@ -131,6 +132,67 @@ func TestLossLessMapperMapNumberMetrics(t *testing.T) {
 			},
 		},
 		{
+			name:               "count as rate with interval inference",
+			dataType:           Count,
+			inferDeltaInterval: true,
+			sendCountersAsRate: true,
+			setupSlice: func(slice pmetric.NumberDataPointSlice) {
+				dp := slice.AppendEmpty()
+				dp.SetIntValue(50)
+				dp.SetStartTimestamp(pcommon.Timestamp(1000000000))
+				dp.SetTimestamp(pcommon.Timestamp(11000000000))
+			},
+			expectedTimeSeries: []TestTimeSeries{
+				{
+					TestDimensions: TestDimensions{Name: "test.metric"},
+					Type:           Rate,
+					Timestamp:      11000000000,
+					Interval:       10,
+					Value:          5.0, // 50 / 10s = 5 per second
+				},
+			},
+		},
+		{
+			name:               "count as rate falls back to count when no interval",
+			dataType:           Count,
+			inferDeltaInterval: true,
+			sendCountersAsRate: true,
+			setupSlice: func(slice pmetric.NumberDataPointSlice) {
+				dp := slice.AppendEmpty()
+				dp.SetIntValue(50)
+				// No start timestamp => interval cannot be inferred
+				dp.SetTimestamp(pcommon.Timestamp(11000000000))
+			},
+			expectedTimeSeries: []TestTimeSeries{
+				{
+					TestDimensions: TestDimensions{Name: "test.metric"},
+					Type:           Count,
+					Timestamp:      11000000000,
+					Value:          50,
+				},
+			},
+		},
+		{
+			name:               "gauge unaffected by counters as rate",
+			dataType:           Gauge,
+			inferDeltaInterval: true,
+			sendCountersAsRate: true,
+			setupSlice: func(slice pmetric.NumberDataPointSlice) {
+				dp := slice.AppendEmpty()
+				dp.SetDoubleValue(42.0)
+				dp.SetStartTimestamp(pcommon.Timestamp(1000000000))
+				dp.SetTimestamp(pcommon.Timestamp(11000000000))
+			},
+			expectedTimeSeries: []TestTimeSeries{
+				{
+					TestDimensions: TestDimensions{Name: "test.metric"},
+					Type:           Gauge,
+					Timestamp:      11000000000,
+					Value:          42.0,
+				},
+			},
+		},
+		{
 			name:     "with attributes",
 			dataType: Gauge,
 			setupSlice: func(slice pmetric.NumberDataPointSlice) {
@@ -158,6 +220,7 @@ func TestLossLessMapperMapNumberMetrics(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := translatorConfig{
 				InferDeltaInterval: tt.inferDeltaInterval,
+				SendCountersAsRate: tt.sendCountersAsRate,
 			}
 			mapper := newLossLessMapper(cfg, zap.NewNop())
 
